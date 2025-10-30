@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LSO — Panel</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand">LSO</div>
+      <nav>
+        <button data-view="dashboard" class="nav-btn active">Dashboard</button>
+        <button data-view="profile" class="nav-btn">Profile</button>
+        <button data-view="calendar" class="nav-btn">Kalendarz</button>
+        <button data-view="announcements" class="nav-btn">Ogłoszenia</button>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="spacer"></div>
+        <div id="userBadge" class="user-badge">Zaloguj się</div>
+      </header>
+
+      <section id="content" class="content"></section>
+    </main>
+  </div>
+
+  <!-- Login modal -->
+  <div id="loginModal" class="modal">
+    <div class="modal-inner">
+      <h2>Logowanie</h2>
+      <p>Użyj danych z pliku konfiguracyjnego (users.js) lub wprowadź dane testowe.</p>
+      <label>Login<input id="loginName" /></label>
+      <label>Hasło<input id="loginPass" type="password" /></label>
+      <div class="modal-actions">
+        <button id="loginBtn">Zaloguj</button>
+        <button id="closeLogin">Anuluj</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
