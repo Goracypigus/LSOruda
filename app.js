@@ -1,201 +1,214 @@
+// app.js - logika: rejestracja, logowanie, panel wyboru, admin actions
+import { auth, db } from './firebase-config.js';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { doc, setDoc, getDoc, serverTimestamp, addDoc, collection, runTransaction, query, orderBy, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-/*
-  Prosty frontend bez backend — dane są w pamięci/localStorage.
-  Admin może: przydzielać funkcje, przyznawać/odejmować punkty, dodawać służby (kalendarz),
-  dodawać ogłoszenia. Użytkownik — tylko odczyt.
-  Edytuj listę użytkowników w users variable (poniżej) przed startem aplikacji.
-*/
+const $ = id => document.getElementById(id);
 
-// ---- Konfiguracja użytkowników (admin może edytować plik) ----
-const usersSample = (() => {
-  // 25 przykładowych użytkowników; 'user1' to ADMIN z hasłem 'adminpass'
-  const arr = [];
-  for(let i=1;i<=25;i++){
-    arr.push({
-      id: i,
-      username: 'user' + i,
-      password: (i===1) ? 'adminpass' : ('pass' + i),
-      role: (i===1) ? 'admin' : 'user',
-      points: 0,
-      function: '',
-    });
+const init = ()=>{
+  $('btn-register').onclick = register;
+  $('btn-login').onclick = login;
+  onAuthStateChanged(auth, handleAuth);
+};
+
+async function register(){
+  const email = $('register-email').value.trim();
+  const pass = $('register-password').value;
+  const pass2 = $('register-password2').value;
+  const imie = $('register-first').value.trim();
+  const nazwisko = $('register-last').value.trim();
+  const role = $('register-role').value || 'B';
+  if(!email||!pass||pass!==pass2){ alert('Uzupełnij dane i upewnij się, że hasła są takie same.'); return; }
+  try{
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    const uid = cred.user.uid;
+    await setDoc(doc(db,'users',uid), { email, imie, nazwisko, role, points:0, createdAt: serverTimestamp() });
+    alert('Zarejestrowano! Możesz się zalogować.');
+  }catch(e){ alert(e.message); }
+}
+
+async function login(){
+  const email = $('login-email').value.trim();
+  const pass = $('login-password').value;
+  try{
+    const cred = await signInWithEmailAndPassword(auth, email, pass);
+  }catch(e){ alert(e.message); }
+}
+
+async function handleAuth(user){
+  if(user){
+    const snap = await getDoc(doc(db,'users',user.uid));
+    const data = snap.data();
+    const area = document.getElementById('user-area');
+    area.innerHTML = `<div class="row"><span class="badge">${data.imie} ${data.nazwisko}</span> <button class="secondary" id="logout-btn">Wyloguj</button></div>`;
+    document.getElementById('logout-btn').onclick = async ()=>{ await signOut(auth); location.reload(); };
+    document.getElementById('auth-section').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+    if(data.role === 'A') loadAdminPanel();
+    else loadUserPanel();
+  } else {
+    document.getElementById('auth-section').classList.remove('hidden');
+    document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('user-area').innerHTML = '';
   }
-  return arr;
-})();
-
-// ---- Persistence helpers ----
-const DBKEY = 'lso_db_v1';
-function loadDB(){
-  const raw = localStorage.getItem(DBKEY);
-  if(raw) return JSON.parse(raw);
-  const initial = { users: usersSample, announcements: [], shifts: [] };
-  localStorage.setItem(DBKEY, JSON.stringify(initial));
-  return initial;
-}
-function saveDB(db){ localStorage.setItem(DBKEY, JSON.stringify(db)); }
-
-let DB = loadDB();
-let currentUser = null;
-
-// ---- UI helpers ----
-const content = document.getElementById('content');
-const userBadge = document.getElementById('userBadge');
-
-function showLogin(){
-  document.getElementById('loginModal').style.display='flex';
-}
-function hideLogin(){ document.getElementById('loginModal').style.display='none'; }
-
-document.getElementById('closeLogin').onclick = hideLogin;
-document.getElementById('loginBtn').onclick = () => {
-  const name = document.getElementById('loginName').value.trim();
-  const pass = document.getElementById('loginPass').value;
-  const u = DB.users.find(x => x.username === name && x.password === pass);
-  if(!u){ alert('Nieprawidłowy login/hasło'); return; }
-  currentUser = u;
-  hideLogin();
-  renderView('dashboard');
-  updateBadge();
-};
-
-// initial badge
-userBadge.onclick = () => {
-  if(!currentUser) showLogin();
-  else if(confirm('Wylogować?')){ currentUser = null; updateBadge(); renderView('dashboard'); }
-};
-
-function updateBadge(){
-  if(!currentUser) userBadge.textContent = 'Zaloguj się';
-  else userBadge.textContent = (currentUser.role === 'admin' ? 'Administrator' : 'Użytkownik') + ' — ' + currentUser.username;
 }
 
-// nav
-document.querySelectorAll('.nav-btn').forEach(b=>{
-  b.addEventListener('click', e=>{
-    document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active');
-    renderView(b.dataset.view);
+async function loadAdminPanel(){
+  const panel = document.getElementById('admin-panel');
+  panel.classList.remove('hidden');
+  panel.innerHTML = `<h3>Panel Administratora</h3>
+    <div class="card-mini">
+      <h4>Użytkownicy</h4>
+      <div id="users-list" class="list"></div>
+    </div>
+    <div class="card-mini">
+      <h4>Przyznaj / Odejmij punkty</h4>
+      <select id="points-user-select" class="select"></select>
+      <input id="points-amount" type="number" placeholder="Ilość punktów">
+      <button id="btn-pts-add">Dodaj</button><button id="btn-pts-sub">Odejmij</button>
+    </div>
+    <div class="card-mini">
+      <h4>Dodaj służbę</h4>
+      <label>Wybierz użytkownika:</label>
+      <select id="duty-user" class="select"></select>
+      <input id="duty-title" placeholder="Nazwa służby">
+      <select id="duty-kind"><option value="one">Jednorazowa</option><option value="rec">Stała</option></select>
+      <input id="duty-when" type="datetime-local">
+      <select id="duty-weekday"><option value="1">Poniedziałek</option><option value="2">Wtorek</option><option value="3">Środa</option><option value="4">Czwartek</option><option value="5">Piątek</option><option value="6">Sobota</option><option value="0">Niedziela</option></select>
+      <label>
+       <input id="duty-kadzidla" type="checkbox"> Ministrant</label><br>
+        <input id="duty-kadzidla" type="checkbox">Lektor</label><br>
+      <input id="duty-kadzidla" type="checkbox"> Ministrant kadzidła</label><br>
+      <input id="duty-kadzidla" type="checkbox"> Ministrant Światła</label><br>
+      <input id="duty-kadzidla" type="checkbox"> Ministrant Krzyża</label><br>
+      <input id="duty-kadzidla" type="checkbox"> Ministrant Wody</label><br>
+      <input id="duty-kadzidla" type="checkbox"> Ministrant Księgi</label><br>
+      <input id="duty-kadzidla" type="checkbox"> Ministrant Ołtaraza</label><br>
+      
+      <button id="btn-add-duty">Dodaj służbę</button>
+    </div>
+    <div class="card-mini">
+      <h4>Ogłoszenia</h4>
+      <textarea id="announcement-text" placeholder="Treść ogłoszenia"></textarea>
+      <button id="btn-post-ann">Wywiesź ogłoszenie</button>
+      <div id="ann-list"></div>
+    </div>`;
+
+  // load users into selects and list
+  const q = query(collection(db,'users'), orderBy('imie'));
+  const snap = await getDocs(q);
+  const selPts = document.getElementById('points-user-select');
+  const selDuty = document.getElementById('duty-user');
+  const list = document.getElementById('users-list');
+  selPts.innerHTML = '<option value="">Wybierz użytkownika</option>';
+  selDuty.innerHTML = '<option value="">Wybierz użytkownika</option>';
+  list.innerHTML = '';
+  snap.forEach(d=>{
+    const u=d.data(); const uid=d.id;
+    const el = document.createElement('div'); el.className='row card-mini';
+    el.innerHTML = `<strong>${u.imie} ${u.nazwisko}</strong> <small>${u.email||''}</small> <button onclick="viewUser('${uid}')">Podgląd</button> <button onclick="deleteUser('${uid}')">Usuń</button>`;
+    list.appendChild(el);
+    selPts.innerHTML += `<option value="${uid}">${u.imie} ${u.nazwisko}</option>`;
+    selDuty.innerHTML += `<option value="${uid}">${u.imie} ${u.nazwisko}</option>`;
   });
-});
 
-// ---- Render views ----
-function renderView(view){
-  if(view === 'dashboard') return renderDashboard();
-  if(view === 'profile') return renderProfile();
-  if(view === 'calendar') return renderCalendar();
-  if(view === 'announcements') return renderAnnouncements();
-  content.innerHTML = '<div class="card">Brak widoku</div>';
+  // wire UI: toggle weekday vs datetime
+  const dutyKindEl = document.getElementById('duty-kind');
+  const dutyWhenEl = document.getElementById('duty-when');
+  const dutyWeekdayEl = document.getElementById('duty-weekday');
+  const toggleKind = ()=>{
+    if(dutyKindEl.value === 'rec'){
+      dutyWeekdayEl.style.display = 'block';
+      dutyWhenEl.style.display = 'none';
+    } else {
+      dutyWeekdayEl.style.display = 'none';
+      dutyWhenEl.style.display = 'block';
+    }
+  };
+  dutyKindEl.addEventListener('change', toggleKind);
+  toggleKind();
+
+  document.getElementById('btn-pts-add').onclick = ()=>modifyPoints(1);
+  document.getElementById('btn-pts-sub').onclick = ()=>modifyPoints(-1);
+  document.getElementById('btn-add-duty').onclick = addDuty;
+  document.getElementById('btn-post-ann').onclick = postAnnouncement;
+  loadAnnouncements();
 }
 
-function renderDashboard(){
-  content.innerHTML = '';
-  // If admin, show admin controls
-  if(currentUser && currentUser.role === 'admin'){
-    const card = elCard(`<h3 class="h1">Przyznawanie funkcji</h3><div class="small">Wybierz użytkownika, przypisz funkcję</div>`);
-    const select = document.createElement('select');
-    select.style.margin='12px 0';
-    DB.users.forEach(u => { const o = document.createElement('option'); o.value=u.id; o.textContent = u.username + ' ('+u.role+')'; select.appendChild(o); });
-    const input = document.createElement('input'); input.placeholder='np. Ministrant światła'; input.style.padding='8px';
-    const btn = document.createElement('button'); btn.className='btn'; btn.textContent='Przyznaj funkcję';
-    btn.onclick = ()=>{
-      const uid = +select.value; const fn = input.value.trim();
-      if(!fn){ alert('Wpisz funkcję'); return; }
-      const u = DB.users.find(x=>x.id===uid); u.function = fn; saveDB(DB); alert('Funkcja przypisana'); renderDashboard();
-    };
-    card.appendChild(select); card.appendChild(input); card.appendChild(btn);
-    content.appendChild(card);
-
-    // Points
-    const card2 = elCard('<h3 class="h2">Punkty</h3>');
-    const sel2 = document.createElement('select'); sel2.style.margin='8px 0';
-    DB.users.forEach(u => { const o = document.createElement('option'); o.value=u.id; o.textContent = u.username + ' — ' + u.points + ' pkt'; sel2.appendChild(o); });
-    const num = document.createElement('input'); num.type='number'; num.value=1; num.style.width='80px'; num.style.marginRight='8px';
-    const add = document.createElement('button'); add.className='btn'; add.textContent='Dodaj';
-    const sub = document.createElement('button'); sub.className='btn'; sub.textContent='Odejmij';
-    add.onclick = ()=>{ const u = DB.users.find(x=>x.id==+sel2.value); u.points += Math.abs(+num.value||0); saveDB(DB); alert('Dodano'); renderDashboard(); }
-    sub.onclick = ()=>{ const u = DB.users.find(x=>x.id==+sel2.value); u.points -= Math.abs(+num.value||0); if(u.points<0)u.points=0; saveDB(DB); alert('Odejęto'); renderDashboard(); }
-    card2.appendChild(sel2); card2.appendChild(num); card2.appendChild(add); card2.appendChild(sub);
-    content.appendChild(card2);
-
-    // Shifts
-    const card3 = elCard('<h3 class="h2">Dodawanie służby</h3>');
-    const date = document.createElement('input'); date.type='date';
-    const who = document.createElement('select'); who.style.margin='8px 0';
-    DB.users.forEach(u => { const o = document.createElement('option'); o.value=u.id; o.textContent=u.username; who.appendChild(o); });
-    const addShift = document.createElement('button'); addShift.className='btn'; addShift.textContent='Dodaj służbę';
-    addShift.onclick = ()=>{
-      if(!date.value){ alert('Wybierz datę'); return; }
-      DB.shifts.push({id:Date.now(), date:date.value, userId:+who.value});
-      saveDB(DB); alert('Służba dodana'); renderDashboard();
-    };
-    card3.appendChild(date); card3.appendChild(who); card3.appendChild(addShift);
-    content.appendChild(card3);
-
-    // Announcements admin quick
-    const card4 = elCard('<h3 class="h2">Ogłoszenia</h3>');
-    const annText = document.createElement('textarea'); annText.placeholder='Treść ogłoszenia'; annText.style.width='100%'; annText.style.height='60px';
-    const post = document.createElement('button'); post.className='btn'; post.textContent='Opublikuj';
-    post.onclick = ()=>{ if(!annText.value.trim()){alert('Wpisz treść');return;} DB.announcements.unshift({id:Date.now(), text:annText.value.trim(), author:currentUser.username, date:new Date().toISOString()}); saveDB(DB); annText.value=''; alert('Opublikowano'); renderDashboard(); }
-    card4.appendChild(annText); card4.appendChild(post);
-    content.appendChild(card4);
-  }
-
-  // Common: points quick view and announcements
-  const pointsCard = elCard('<h3 class="h2">Punkty</h3>');
-  if(currentUser) pointsCard.appendChild(txtEl('Masz punktów: ' + currentUser.points));
-  else pointsCard.appendChild(txtEl('Zaloguj się aby zobaczyć swoje punkty'));
-  content.appendChild(pointsCard);
-
-  const annCard = elCard('<h3 class="h2">Ogłoszenia</h3>');
-  if(DB.announcements.length===0) annCard.appendChild(txtEl('Brak ogłoszeń'));
-  else{
-    DB.announcements.slice(0,5).forEach(a=>{
-      const d = document.createElement('div'); d.style.marginTop='8px';
-      d.innerHTML = `<strong>${a.author}</strong> — <span class="small">${new Date(a.date).toLocaleString()}</span><div>${a.text}</div>`;
-      annCard.appendChild(d);
-    });
-  }
-  content.appendChild(annCard);
+async function modifyPoints(mult){
+  const uid = document.getElementById('points-user-select').value;
+  const val = Number(document.getElementById('points-amount').value);
+  if(!uid||!val){ alert('Wybierz użytkownika i ilość'); return; }
+  await runTransaction(db, async (t)=>{
+    const ref = doc(db,'users',uid);
+    const d = await t.get(ref);
+    const cur = d.data().points||0;
+    t.update(ref, { points: cur + mult*val });
+  });
+  alert('Punkty zmienione');
+  loadAdminPanel();
 }
 
-function renderProfile(){
-  content.innerHTML='';
-  const card = elCard('<h3 class="h1">Profil użytkownika</h3>');
-  if(!currentUser){ card.appendChild(txtEl('Zaloguj się aby zobaczyć profil.')); content.appendChild(card); return; }
-  card.appendChild(elRow('Funkcja', currentUser.function || 'Brak funkcji'));
-  card.appendChild(elRow('Punkty', ''+currentUser.points));
-  content.appendChild(card);
-
-  const ann = elCard('<h3 class="h2">Ogłoszenia</h3>');
-  if(DB.announcements.length===0) ann.appendChild(txtEl('Brak ogłoszeń'));
-  else DB.announcements.slice(0,5).forEach(a=> ann.appendChild(txtEl(a.text)));
-  content.appendChild(ann);
+async function addDuty(){
+  const title = document.getElementById('duty-title').value.trim();
+  const kind = document.getElementById('duty-kind').value;
+  const when = document.getElementById('duty-when').value;
+  const weekday = document.getElementById('duty-weekday').value;
+  const user = document.getElementById('duty-user').value;
+  const kadz = document.getElementById('duty-kadzidla').checked;
+  if(!title||!user){ alert('Wypełnij nazwę i wybierz użytkownika'); return; }
+  const docObj = { title, user, type: kadz? 'kadzidla':'ministrant', kind, meta:{kadzidla:kadz}, createdAt: serverTimestamp(), permanent: (kind==='rec') };
+  if(kind==='one'){ docObj.when = when ? when.replace('T',' ') : null; }
+  else{ docObj.weekday = Number(weekday); }
+  await addDoc(collection(db,'duties'), docObj);
+  alert('Służba dodana');
+  loadAdminPanel();
 }
 
-function renderCalendar(){
-  content.innerHTML='';
-  const card = elCard('<h3 class="h1">Kalendarz służb</h3>');
-  if(DB.shifts.length===0) card.appendChild(txtEl('Brak dodanych służb'));
-  else{
-    const list = document.createElement('div');
-    DB.shifts.sort((a,b)=>a.date.localeCompare(b.date)).forEach(s=>{
-      const u = DB.users.find(x=>x.id===s.userId);
-      const row = document.createElement('div'); row.style.padding='10px 0'; row.style.borderBottom='1px solid rgba(11,34,50,0.04)';
-      row.innerHTML = `<strong>${s.date}</strong> — ${u ? u.username : '—'} ${u && u.function ? '('+u.function+')' : ''}`;
-      list.appendChild(row);
-    });
-    card.appendChild(list);
-  }
-  content.appendChild(card);
+async function postAnnouncement(){ const t = document.getElementById('announcement-text').value.trim(); if(!t) return alert('Brak tekstu'); await addDoc(collection(db,'announcements'), {text:t, createdAt: serverTimestamp()}); alert('Ogłoszenie dodane'); loadAnnouncements(); }
+async function loadAnnouncements(){ const snap = await getDocs(query(collection(db,'announcements'), orderBy('createdAt','desc'))); const n=document.getElementById('ann-list'); n.innerHTML=''; snap.forEach(d=>{ const data=d.data(); const el=document.createElement('div'); el.className='card-mini row'; el.innerHTML=`<div>${data.text}</div><small>${data.createdAt?data.createdAt.toDate().toLocaleString():'-'}</small>`; n.appendChild(el); }); }
+
+async function viewUser(uid){ const d = await getDoc(doc(db,'users',uid)); alert(JSON.stringify(d.data(),null,2)); }
+async function deleteUser(uid){ if(!confirm('Usunąć użytkownika?')) return; await (await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js')).deleteDoc(doc(db,'users',uid)); alert('Usunięto'); loadAdminPanel(); }
+
+async function loadUserPanel(){
+  const panel = document.getElementById('user-panel');
+  panel.classList.remove('hidden');
+  panel.innerHTML = `<h3>Panel Użytkownika</h3>
+    <div id="my-info" class="card-mini"></div>
+    <div id="my-duties" class="card-mini"><h4>Moje służby</h4><div id="duty-list"></div></div>
+    <div id="my-messages" class="card-mini"><h4>Wiadomości</h4><div id="msg-list"></div></div>
+    <div id="announcements-user" class="card-mini"><h4>Tablica ogłoszeń</h4><div id="ann-user-list"></div></div>`;
+
+  const snap = await getDoc(doc(db,'users',auth.currentUser.uid));
+  const d = snap.data();
+  document.getElementById('my-info').innerHTML = `<strong>${d.imie} ${d.nazwisko}</strong><div>Punkty: <span class="badge">${d.points||0}</span></div>`;
+  loadMyDuties();
+  loadMessages();
+  loadAnnouncementsUser();
 }
 
-// ---- small helpers ----
-function elCard(html){
-  const d = document.createElement('div'); d.className='card'; d.innerHTML = html; return d;
+async function loadMyDuties(){
+  const list = document.getElementById('duty-list');
+  list.innerHTML = '<em>Ładowanie...</em>';
+  const q = query(collection(db,'duties'), where('user','==', auth.currentUser.uid));
+  const snap = await getDocs(q);
+  list.innerHTML = '';
+  const days = ['Niedziela','Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota'];
+  snap.forEach(d=>{
+    const data = d.data();
+    const el = document.createElement('div'); el.className='card-mini';
+    if(data.kind === 'rec'){
+      const wd = (typeof data.weekday !== 'undefined') ? days[data.weekday] : 'Dzień nieznany';
+      el.innerHTML = `<strong>${data.title}</strong><div>Typ: stała (${wd})</div>${data.permanent?'<div><em>Przypisana na stałe</em></div>':''}${data.meta && data.meta.kadzidla?'<div>Funkcja: kadzidła</div>':''}`;
+    } else {
+      el.innerHTML = `<strong>${data.title}</strong><div>Typ: jednorazowa</div><div>Termin: ${data.when||'brak'}</div>${data.meta && data.meta.kadzidla?'<div>Funkcja: kadzidła</div>':''}`;
+    }
+    list.appendChild(el);
+  });
 }
-function txtEl(text){ const p = document.createElement('div'); p.className='small'; p.textContent = text; return p; }
-function elRow(title, value){ const r = document.createElement('div'); r.style.padding='12px 0'; r.innerHTML = `<div class="h2">${title}</div><div class="small">${value}</div>`; return r; }
 
-// initial render
-renderView('dashboard');
-updateBadge();
+async function loadMessages(){ const snap = await getDocs(query(collection(db,'messages'), orderBy('createdAt','desc'))); const list=document.getElementById('msg-list'); list.innerHTML=''; snap.forEach(d=>{ const data=d.data(); const el=document.createElement('div'); el.className='card-mini'; el.innerHTML=`<div><strong>Od:</strong> ${data.fromName||data.from}</div><div>${data.text}</div><small>${data.createdAt?data.createdAt.toDate().toLocaleString():'-'}</small>`; list.appendChild(el); }); }
+async function loadAnnouncementsUser(){ const snap = await getDocs(query(collection(db,'announcements'), orderBy('createdAt','desc'))); const n=document.getElementById('ann-user-list'); n.innerHTML=''; snap.forEach(d=>{ const data=d.data(); const el=document.createElement('div'); el.className='card-mini'; el.innerHTML=`<div>${data.text}</div><small>${data.createdAt?data.createdAt.toDate().toLocaleString():'-'}</small>`; n.appendChild(el); }); }
+
+window.addEventListener('DOMContentLoaded', init);
