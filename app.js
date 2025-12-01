@@ -61,13 +61,10 @@ async function loadAdminPanel(){
   const panel = document.getElementById('admin-panel');
   panel.classList.remove('hidden');
   panel.innerHTML = `<h3>Panel Administratora</h3>
-    <div class="card-mini">
-      <h4>Użytkownicy</h4>
-      <div id="users-list" class="list"></div>
-    </div>
+   
     <div class="card-mini">
       <h4>Przyznaj / Odejmij punkty</h4>
-      <select id="points-user-select" class="select"></select>
+      <select id="points-user-select" class="select" ></select>
       <input id="points-amount" type="number" placeholder="Ilość punktów">
       <button id="btn-pts-add">Dodaj</button><button id="btn-pts-sub">Odejmij</button>
     </div>
@@ -176,6 +173,10 @@ async function addDuty(){
   alert('Służba dodana');
   loadAdminPanel();
 }
+ <div class="card-mini">
+      <h4>Użytkownicy</h4>
+      <div id="users-list" class="list"></div>
+    </div>
 
 async function postAnnouncement(){ const t = document.getElementById('announcement-text').value.trim(); if(!t) return alert('Brak tekstu'); await addDoc(collection(db,'announcements'), {text:t, createdAt: serverTimestamp()}); alert('Ogłoszenie dodane'); loadAnnouncements(); }
 async function loadAnnouncements(){ const snap = await getDocs(query(collection(db,'announcements'), orderBy('createdAt','desc'))); const n=document.getElementById('ann-list'); n.innerHTML=''; snap.forEach(d=>{ const data=d.data(); const el=document.createElement('div'); el.className='card-mini row'; el.innerHTML=`<div>${data.text}</div><small>${data.createdAt?data.createdAt.toDate().toLocaleString():'-'}</small>`; n.appendChild(el); }); }
