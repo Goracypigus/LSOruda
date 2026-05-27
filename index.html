@@ -9,13 +9,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=400;500;600;700&family=Playfair+Display:ital,wght=0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+
 </head>
 <body>
 
     <div id="auth-screen" class="auth-overlay">
         <div class="auth-card">
             <div class="cathedral-icon-container">
-                <svg class="icon-svg icon-maroon" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 3.99L19.53 19H4.47L12 5.99zM11 11h2v4h-2v-4zm0 5h2v2h-2v-2z"/></svg>
+                <img src="logo.png" alt="" style="height: 150px; padding: 15px;">
             </div>
             <h1>Liturgiczna Służba Ołtarza</h1>
             <p class="auth-sub">W Rudzie</p>
@@ -116,7 +117,7 @@
 
         <main id="app-content" class="main-content hidden">
             
-            <section id="tab-home" class="tab-view" class="text-align:center;">
+            <section id="tab-home" class="tab-view" style="text-align:center;">
                 <div class="hero-banner">
                     <h1 id="user-welcome">Króluj nam Chryste!</h1>
                     <p>Liturgiczna Służba Ołtarza w Rudzie</p>
@@ -143,14 +144,9 @@
                 </div>
 
                 <div class="info-card mt-3">
-                    <h3>Historia Twojej aktywności</h3>
-                    <div class="table-responsive">
-                        <table class="maroon-table">
-                            <thead>
-                                <tr><th>Data</th><th>Wydarzenie</th><th class="text-right">Punkty</th></tr>
-                            </thead>
-                            <tbody id="user-points-history"></tbody>
-                        </table>
+                    <h3 style="color: #801E2B; font-size: 25px; font-family: 'Playfair Display';text-align: left;">Jan Paweł II</h3>
+                    <div class="table-responsive" style="color: #D4AF37; font-size: 15px; font-family: 'Playfair Display';text-align: center; padding:14px;">
+                        <blockquote class="maroon-quote"><i><b>"Wypełniając waszą służbę liturgiczną, jesteście współpracownikami kapłana, ale przede wszystkim jesteście sługami Jezusa.<br> Zachęcam więc was, abyście pielęgnowali głęboką przyjaźń z Nim, uznając w Nim prawdziwego przyjaciela,<br> który jest przy waszym boku tak w pięknych, jak i w trudnych chwilach."</i></b></blockquote>
                     </div>
                 </div>
             </section>
