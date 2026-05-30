@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Eleganckie bordowe tło w kształcie koła pasujące do strony -->
+  <circle cx="256" cy="256" r="240" fill="#58181F" stroke="#D4AF37" stroke-width="12" />
+  
+  <!-- Złoty Krzyż Liturgiczny (uproszczony i czytelny) -->
+  <g fill="#D4AF37">
+    <!-- Pionowa belka -->
+    <path d="M236 80h40v352h-40z" />
+    <!-- Pozioma belka -->
+    <path d="M120 180h272v40H120z" />
+    <!-- Ozdobne zakończenia ramion krzyża (trójlistne) -->
+    <circle cx="256" cy="80" r="24" />
+    <circle cx="256" cy="432" r="24" />
+    <circle cx="120" cy="200" r="24" />
+    <circle cx="392" cy="200" r="24" />
+  </g>
+</svg>
