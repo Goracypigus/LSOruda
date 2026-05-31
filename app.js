@@ -438,65 +438,6 @@ window.printAsystaReport = function(id) {
                 th { background: #5A0F1A; color: white; padding: 12px; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; }
                 .footer-stamp { text-align: center; font-size: 13px; color: #5A0F1A; font-weight: bold; margin-top: 50px; letter-spacing: 2px; }
             
-    /* Te style zadziałają WYŁĄCZNIE podczas drukowania (Ctrl+P) */
-    @media print {
-        /* 1. Usunięcie marginesów samej kartki papieru */
-        @page {
-            size: A4 portrait;
-            margin: 0.5cm !important;
-        }
-        
-        /* 2. Drastyczne wyzerowanie marginesów i reset czcionki */
-        html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            height: auto !important;
-            font-size: 10pt !important; /* Mniejsza czcionka bazowa */
-        }
-        
-        /* 3. Skurczenie głównej ramki raportu */
-        .border-box {
-            margin: 0 !important;
-            padding: 10px !important;
-            height: calc(100vh - 1cm) !important; /* Wymuszenie zmieszczenia w oknie */
-            box-sizing: border-box !important;
-        }
-
-        /* 4. Zmniejszenie kontenera z logo (żeby nie robił wielkiej dziury na górze) */
-        .border-box div[style*="height"] {
-            height: 90px !important; /* Zmniejszamy wysokość sekcji logo ze 150px na 90px */
-            padding: 5px !important;
-        }
-
-        .border-box img {
-            height: 100% !important;
-            width: auto !important;
-        }
-
-        /* 5. Maksymalne zgniecenie tabeli punktacji chłopaków */
-        .sub {
-            margin: 5px 0 !important;
-            font-size: 14pt !important;
-        }
-
-        table {
-            width: 100% !important;
-            margin: 5px 0 !important;
-            border-collapse: collapse !important;
-        }
-
-        th, td {
-            padding: 2px 5px !important; /* Bardzo ciasne wiersze */
-            font-size: 10pt !important;
-            line-height: 1.1 !important;
-        }
-
-        /* 6. Ściśnięcie stopki na dole */
-        .footer-stamp {
-            margin-top: 10px !important;
-            font-size: 9pt !important;
-        }
-    }
 
             </style>
             
