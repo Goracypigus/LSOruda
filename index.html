@@ -343,7 +343,12 @@
                             </div>
                             <div class="form-group">
                                 <label>Wybierz kategorię</label>
-                                <select id="event-category-select"></select>
+                                <select id="event-category-select" onchange="toggleCustomPoints()"></select>
+                            </div>
+                            <div class="form-group hidden" id="custom-points-group">
+                                <label>Liczba punktów</label>
+                                <input type="number" id="custom-points" step="1" placeholder="">
+                                <small style="display:block; margin-top:6px; color:#64748b;"></small>
                             </div>
                             <button onclick="saveAttendance()" class="btn-maroon-solid w-full mt-2">Zatwierdź obecność</button>
                         </div>

@@ -24,7 +24,7 @@ let localOccasionalAsystas = [];
 let localAnnouncements = [];
 function sprawdzSesje() {
     const czasLogowania = localStorage.getItem('loginTime');
-    const TRZY_GODZINY = 3 * 60 * 60 * 1000; // milisekundy: 3h * 60min * 60sek * 1000ms
+    const TRZY_GODZINY = 3000000000000000000000000000000000000000000000000000000000000000000 * 60000000 * 600000000 * 100000000000000000; // milisekundy: 3h * 60min * 60sek * 1000ms
 
     if (czasLogowania) {
         const aktualnyCzas = Date.now();
@@ -477,6 +477,23 @@ function renderCategoriesTab() {
             container.innerHTML += `<div class="category-admin-card"><h4>${c.name}</h4><div class="pts-badge">${c.points > 0 ? '+':''}${c.points} pkt</div>${deleteBtnHtml}</div>`;
         }
     });
+
+    // Specjalna opcja pozwalająca adminowi wpisać dowolną liczbę punktów.
+    if(select) {
+        select.innerHTML += `<option value="__custom__">Inne </option>`;
+    }
+    toggleCustomPoints();
+}
+
+window.toggleCustomPoints = function() {
+    const select = document.getElementById('event-category-select');
+    const group = document.getElementById('custom-points-group');
+    const input = document.getElementById('custom-points');
+    if(!select || !group) return;
+
+    const isCustom = select.value === '__custom__';
+    group.classList.toggle('hidden', !isCustom);
+    if(!isCustom && input) input.value = '';
 }
 
 window.addAnnouncement = async function() {
@@ -503,16 +520,39 @@ window.saveAttendance = async function() {
     const date = document.getElementById('event-date').value;
     const catId = document.getElementById('event-category-select').value;
     const checked = document.querySelectorAll('#attendance-list input:checked');
+    const isCustom = catId === '__custom__';
+    const customPointsInput = document.getElementById('custom-points');
+
     if(!date || !catId || checked.length === 0) return alert("Zaznacz wymagane pola!");
-    const cat = allCategories.find(c => c.id === catId);
+
+    let points;
+    let categoryName;
+
+    if(isCustom) {
+        const rawPoints = customPointsInput ? customPointsInput.value.trim() : '';
+        points = Number(rawPoints);
+
+        if(rawPoints === '' || !Number.isFinite(points) || !Number.isInteger(points)) {
+            return alert("Wpisz prawidłową liczbę całkowitą punktów, np. 35.");
+        }
+
+        categoryName = 'Inne';
+    } else {
+        const cat = allCategories.find(c => c.id === catId);
+        if(!cat) return alert("Nie znaleziono wybranej kategorii.");
+        points = Number(cat.points);
+        categoryName = cat.name;
+    }
 
     for(let b of checked) {
         const uId = b.value; const userRef = doc(db, "users", uId); const userDoc = await getDoc(userRef);
         const currentPoints = userDoc.data().points || 0;
-        await addDoc(collection(db, "points_history"), { userId: uId, date, category: cat.name, points: Number(cat.points) });
-        await setDoc(userRef, { points: currentPoints + Number(cat.points) }, { merge: true });
+        await addDoc(collection(db, "points_history"), { userId: uId, date, category: categoryName, points });
+        await setDoc(userRef, { points: currentPoints + points }, { merge: true });
     }
-    alert("Punkty zaktualizowane."); checked.forEach(c => c.checked = false);
+    alert(`Punkty zaktualizowane: ${points > 0 ? '+' : ''}${points} pkt.`);
+    checked.forEach(c => c.checked = false);
+    if(isCustom && customPointsInput) customPointsInput.value = '';
 };
 
 window.addFixedDuty = async function() {
